@@ -29,3 +29,4 @@ Gatilho: Pull Request para `main`. Jobs: `lint` → `security` → `build` → `
 docker build -t tarefas-api .
 docker run -p 3000:3000 tarefas-api
 ```
+
