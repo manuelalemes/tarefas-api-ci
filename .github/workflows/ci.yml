@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Analise estatica e formatacao
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - name: Analise estatica de codigo (ESLint)
+        run: npm run lint
+      - name: Analise de formatacao (Prettier)
+        run: npm run format:check
+      - name: Checagem de tipos (TypeScript)
+        run: npm run typecheck
+
+  security:
+    name: Analise estatica de seguranca
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - name: Auditoria de dependencias (npm audit)
+        run: npm run audit:security
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - name: Analise CodeQL
+        uses: github/codeql-action/analyze@v3
+
+  build:
+    name: Build
+    needs: [lint, security]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run build
+
+  test:
+    name: Testes unitarios e de integracao
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - name: Testes unitarios
+        run: npm run test:unit
+      - name: Testes de integracao
+        run: npm run test:integration
+
+  docker:
+    name: Criar imagem
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: tarefas-api:${{ github.sha }}
